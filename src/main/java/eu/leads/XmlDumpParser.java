@@ -7,13 +7,11 @@ import org.sweble.wikitext.dumpreader.export_0_10.PageType;
 import org.sweble.wikitext.dumpreader.export_0_10.RevisionType;
 
 import java.io.*;
-import java.nio.Buffer;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
-import java.util.stream.Stream;
+import java.util.*;
 
 public class XmlDumpParser {
 
@@ -36,6 +34,8 @@ public class XmlDumpParser {
                 System.exit(1);
             }
         }
+
+        final Map<String, List<String>> history = new HashMap<>();
         logger.info("Start parsing dump file " + xmlFileName);
         DumpReader reader = new DumpReader(is, Charset.forName("UTF-8"), "", logger, false) {
             @Override
@@ -52,7 +52,12 @@ public class XmlDumpParser {
                 }
                 for (Object r : revisions) {
                     RevisionType revision = (RevisionType) r;
-                    Path revisionOnDisk = Paths.get(pageDirectory.getAbsolutePath() + "/" + ((RevisionType) r).getTimestamp());
+                    Path revisionOnDisk = Paths.get(pageDirectory.getAbsolutePath(), revision.getTimestamp().toString());
+                    String timestamp = revision.getTimestamp().toString();
+                    if (!history.containsKey(timestamp)) {
+                        history.put(timestamp, new ArrayList<String>());
+                    }
+                    history.get(timestamp).add(revisionOnDisk.toString());
                     if (!Files.exists(revisionOnDisk)) {
                         try {
                             Files.write(revisionOnDisk, revision.getText().getValue().getBytes());
@@ -64,6 +69,17 @@ public class XmlDumpParser {
             }
         };
         reader.unmarshal();
+        List<String> timestamps = new ArrayList(history.keySet());
+        Collections.sort(timestamps);
+        Path timeline = Paths.get(directory.getAbsolutePath(), "timeline.txt");
+        try(FileWriter writer = new FileWriter(timeline.toString())) {
+            for (String timestamp: timestamps) {
+                List<String> revisions = history.get(timestamp);
+                for (String revision: revisions) {
+                    writer.append(revision + System.lineSeparator());
+                }
+            }
+        }
     }
 
     private static void printUsage() {
