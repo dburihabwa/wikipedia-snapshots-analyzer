@@ -57,7 +57,8 @@ public class XmlDumpParser {
                     if (!history.containsKey(timestamp)) {
                         history.put(timestamp, new ArrayList<String>());
                     }
-                    history.get(timestamp).add(revisionOnDisk.toString());
+                    String relativePath = Paths.get(page.getId().toString(), revision.getTimestamp().toString()).toString();
+                    history.get(timestamp).add(relativePath);
                     if (!Files.exists(revisionOnDisk)) {
                         try {
                             Files.write(revisionOnDisk, revision.getText().getValue().getBytes());
@@ -72,10 +73,10 @@ public class XmlDumpParser {
         List<String> timestamps = new ArrayList(history.keySet());
         Collections.sort(timestamps);
         Path timeline = Paths.get(directory.getAbsolutePath(), "timeline.txt");
-        try(FileWriter writer = new FileWriter(timeline.toString())) {
-            for (String timestamp: timestamps) {
+        try (FileWriter writer = new FileWriter(timeline.toString())) {
+            for (String timestamp : timestamps) {
                 List<String> revisions = history.get(timestamp);
-                for (String revision: revisions) {
+                for (String revision : revisions) {
                     writer.append(revision + System.lineSeparator());
                 }
             }
