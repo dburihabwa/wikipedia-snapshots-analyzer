@@ -4,12 +4,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.sweble.wikitext.dumpreader.DumpReader;
 import org.sweble.wikitext.dumpreader.export_0_10.PageType;
+import org.sweble.wikitext.dumpreader.export_0_10.RevisionType;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
+import java.io.*;
+import java.nio.Buffer;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class XmlDumpParser {
 
@@ -17,21 +21,56 @@ public class XmlDumpParser {
 
     public static void main(String[] args) throws Exception {
 
+        if (args.length != 2) {
+            printUsage();
+            System.exit(0);
+        }
         String xmlFileName = args[0];
         final File file = new File(xmlFileName);
         final InputStream is = new FileInputStream(file);
+        String directoryPath = args[1];
+        final File directory = new File(directoryPath);
+        if (!directory.exists()) {
+            if (!directory.mkdirs()) {
+                logger.error("Could not successfully create directory " + directoryPath);
+                System.exit(1);
+            }
+        }
         logger.info("Start parsing dump file " + xmlFileName);
         DumpReader reader = new DumpReader(is, Charset.forName("UTF-8"), "", logger, false) {
             @Override
-            protected void processPage(Object mediaWiki, Object page) {
-                PageType p = (PageType) page;
-                List<Object> revisions = p.getRevisionOrUpload();
+            protected void processPage(Object mediaWiki, Object p) {
+                PageType page = (PageType) p;
+                List<Object> revisions = page.getRevisionOrUpload();
                 logger.info("nbRevisions: " + revisions.size());
-                for (Object v : revisions) {
-                    System.out.println(v);
+                File pageDirectory = new File(directory.getAbsolutePath() + "/" + page.getId());
+                if (!pageDirectory.exists()) {
+                    if (!pageDirectory.mkdirs()) {
+                        logger.error("Could not successfully create page directory " + pageDirectory);
+                        return;
+                    }
+                }
+                for (Object r : revisions) {
+                    RevisionType revision = (RevisionType) r;
+                    Path revisionOnDisk = Paths.get(pageDirectory.getAbsolutePath() + "/" + ((RevisionType) r).getTimestamp());
+                    if (!Files.exists(revisionOnDisk)) {
+                        try {
+                            Files.write(revisionOnDisk, revision.getText().getValue().getBytes());
+                        } catch (IOException e) {
+                            logger.error("Could not write file " + revisionOnDisk + "(page id: " + page.getId() + ", revision id: " + revision.getId() + " )");
+                        }
+                    }
                 }
             }
         };
         reader.unmarshal();
+    }
+
+    private static void printUsage() {
+        System.out.println("Usage: java -jar myprogram.jar <path/to/dump.xml> <path/to/dump_directory>");
+        System.out.println("");
+        System.out.println("Arguments: ");
+        System.out.println("\tdump.xml         Path to the xml file to parse");
+        System.out.println("\tdump_directory   Path to the directory where the changes should be written");
     }
 }
